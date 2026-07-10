@@ -10,10 +10,10 @@
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
     font-family:"Segoe UI",system-ui,-apple-system,"Meiryo",sans-serif;overflow:hidden}
   #wrap{display:flex;height:100%}
-  #stage{flex:1;position:relative}
+  #stage{flex:1;position:relative;min-width:0}
   canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
   canvas:active{cursor:grabbing}
-  #panel{width:300px;background:var(--panel);border-left:1px solid var(--line);padding:16px 16px 26px;overflow-y:auto}
+  #panel{width:310px;background:var(--panel);border-left:1px solid var(--line);padding:16px 16px 26px;overflow-y:auto}
   h1{font-size:15px;margin:0 0 4px}
   .sub{color:var(--muted);font-size:12px;margin:0 0 14px;line-height:1.55}
   .grp{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
@@ -21,11 +21,18 @@
   button{background:#222c38;color:var(--ink);border:1px solid var(--line);border-radius:7px;
     padding:8px 10px;font-size:13px;cursor:pointer;width:100%;margin:5px 0;text-align:left}
   button:hover{background:#2b3846}
+  button:active{transform:scale(.98)}
   button.hi{border-color:var(--hi)}
   button.bad{border-color:#e2564e}
+  button.play{text-align:center;font-weight:600;background:#2a3a4d;border-color:#4a90d9}
   .note{font-size:12px;color:var(--muted);line-height:1.6}
   label.row{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer}
   input[type=checkbox]{width:15px;height:15px;accent-color:#4a90d9}
+  .rng{display:block;font-size:12px;color:var(--muted);margin:10px 0 2px}
+  .rng b{color:var(--ink)}
+  input[type=range]{width:100%;margin-top:5px;accent-color:#4a90d9;height:22px}
+  .leg{font-size:11px;color:var(--muted);line-height:1.7;margin-top:6px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 </style>
 </head>
 <body>
@@ -33,51 +40,72 @@
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="panel">
     <h1>正四面体の対称操作</h1>
-    <p class="sub">ドラッグで回転。ボタンで操作をアニメ。<br>
-    <b>灰の玉</b>=元の頂点位置。色玉が灰玉に重なれば<b>対称操作</b>。</p>
+    <p class="sub">ドラッグで回転。まず操作を選び、再生／シークバーで確認。<br>
+    <b>灰のリング</b>=元の頂点位置。色玉が灰リングに重なれば<b>対称操作</b>。</p>
 
     <div class="grp">
-      <h2>回反 S₄（今回の主役）</h2>
+      <h2>① 操作を選ぶ</h2>
       <button id="op_S4" class="hi">S₄ ： z軸で90°回転 → 水平面で鏡映</button>
       <button id="op_S4b" class="hi">S₄³ ： 逆回りの S₄</button>
       <button id="op_rot90" class="bad">（比較）90°回転だけ ← 対称でない</button>
-      <p class="note">90°回転<b>だけ</b>だと色玉が灰玉から外れる（✗）。<br>
-      その後<b>鏡映</b>を足すとピタッと重なる（✓）。これが S₄。</p>
-    </div>
-
-    <div class="grp">
-      <h2>その他の操作</h2>
       <button id="op_C3">C₃ ： 頂点[111]軸で120°回転</button>
       <button id="op_C2">C₂ ： x軸で180°回転</button>
       <button id="op_sig">σ ： 鏡映面（x=y）</button>
       <button id="op_E">E ： 元に戻す</button>
     </div>
 
+    <div class="grp">
+      <h2>② 再生 / シーク</h2>
+      <button id="play" class="play">▶ 再生</button>
+      <label class="rng">シークバー（手動）<input type="range" id="seek" min="0" max="1000" value="0"></label>
+      <label class="rng">再生速度：<b id="speedv">1.0×</b><input type="range" id="speed" min="0.1" max="2" step="0.05" value="1"></label>
+      <p class="note" id="status" style="color:var(--hi)">操作を選んでください</p>
+    </div>
+
+    <div class="grp">
+      <h2>③ 結晶の中で見る</h2>
+      <label class="row"><input type="checkbox" id="cube"> 外接立方体を表示（S₄軸が面を貫く）</label>
+      <label class="row"><input type="checkbox" id="fcc"> 閃亜鉛鉱(ZnS)・FCC構造で表示</label>
+      <div class="leg" id="leg" style="display:none">
+        <span class="dot" style="background:#c8d0d8"></span>中心原子（例:Zn）＝四面体の中心<br>
+        <span class="dot" style="background:#e05c5c"></span><span class="dot" style="background:#5fd08a"></span><span class="dot" style="background:#5aa9e6"></span><span class="dot" style="background:#e5c07b"></span>配位する4原子（例:S）＝正四面体の頂点<br>
+        <span class="dot" style="background:#6b7787"></span>まわりの同種原子（FCC最近接12個）<br>
+        → 中央のS₄四面体が FCC格子の中に埋まっている様子。
+      </div>
+    </div>
+
     <div class="grp" style="border:none">
+      <h2>表示オプション</h2>
       <label class="row"><input type="checkbox" id="axis" checked> 軸・面を表示</label>
-      <label class="row"><input type="checkbox" id="spin"> ゆっくり自動回転</label>
-      <p class="note" id="status" style="margin-top:10px;color:var(--hi)">操作を選んでください</p>
+      <label class="row"><input type="checkbox" id="spin"> ゆっくり自動回転（視点）</label>
     </div>
   </div>
 </div>
 <script>
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
 let W,H,DPR;
 function resize(){ DPR=window.devicePixelRatio||1; const r=cv.getBoundingClientRect();
-  W=r.width;H=r.height; cv.width=W*DPR;cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
-window.addEventListener('resize',()=>{resize();draw();});
+  W=r.width;H=r.height; cv.width=W*DPR;cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); invalidate(); }
+window.addEventListener('resize',resize);
 
-const V=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]];
+const V=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]];   // 四面体の頂点＝配位原子
 const COL=['#e05c5c','#5fd08a','#5aa9e6','#e5c07b'];
 const EDGES=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+// FCC最近接12個（中心原子まわりの同種原子）
+const FCC12=[[2,2,0],[2,-2,0],[-2,2,0],[-2,-2,0],[2,0,2],[2,0,-2],[-2,0,2],[-2,0,-2],[0,2,2],[0,2,-2],[0,-2,2],[0,-2,-2]];
+// 外接立方体の8頂点
+const CUBE=[[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1]];
+const CUBE_E=[];
+for(let i=0;i<8;i++)for(let j=i+1;j<8;j++){let d=0;for(let k=0;k<3;k++)if(CUBE[i][k]!==CUBE[j][k])d++;if(d===1)CUBE_E.push([i,j]);}
 
 let yaw=0.7,pitch=-0.45,zoom=1;
 function rot(p){ const cy=Math.cos(yaw),sy=Math.sin(yaw); let x=p[0],y=p[1],z=p[2];
   let x1=x*cy+z*sy, z1=-x*sy+z*cy; const cp=Math.cos(pitch),sp=Math.sin(pitch);
   let y1=y*cp-z1*sp, z2=y*sp+z1*cp; return [x1,y1,z2]; }
-const CAMD=4.4;
+const CAMD=5.2;
 function proj(p){ const r=rot(p); const persp=CAMD/(CAMD-r[2]);
-  const s=Math.min(W,H)*0.24*zoom*persp;
+  const s=Math.min(W,H)*0.20*zoom*persp;
   return {x:W/2+r[0]*s, y:H/2-r[1]*s, z:r[2], s:s}; }
 function drawAxes(){
   const AX=[{v:[1,0,0],c:'#ff7b7b',l:'x'},{v:[0,1,0],c:'#7be08a',l:'y'},{v:[0,0,1],c:'#7bb8ff',l:'z'}];
@@ -114,87 +142,143 @@ const OPS={
 const AXISOF={ C3:{type:'axis',v:[1,1,1]}, C2:{type:'axis',v:[1,0,0]},
   S4:{type:'axis',v:[0,0,1],plane:true}, S4b:{type:'axis',v:[0,0,1],plane:true},
   rot90:{type:'axis',v:[0,0,1]}, sig:{type:'plane'}, E:null };
+const NAMES={E:'E',C3:'C₃',C2:'C₂',S4:'S₄',S4b:'S₄³',sig:'σ',rot90:'90°回転だけ'};
 
-let curOp='E', tval=0, animating=false, animT0=0;
-const DUR=1100;
-function startOp(name){ curOp=name; tval=0; animating=true; animT0=performance.now(); requestAnimationFrame(step); }
-function step(now){ if(!animating){return;} tval=Math.min(1,(now-animT0)/DUR); draw();
-  if(tval<1){ requestAnimationFrame(step); } else { animating=false; checkSym(); } }
-function checkSym(){ const st=document.getElementById('status');
+/* ---- 再生状態 ---- */
+let curOp='E', tval=0, playing=false, playSpeed=1, lastNow=0, dirty=true;
+const DUR=1600; // 1× で 0→1 にかかる ms
+function invalidate(){ dirty=true; }
+
+function checkSym(){ const st=$('status');
   const moved=V.map(v=>OPS[curOp](v,1)); let ok=true;
   moved.forEach(m=>{ let d=Math.min(...V.map(v=>Math.hypot(v[0]-m[0],v[1]-m[1],v[2]-m[2]))); if(d>0.05)ok=false; });
-  const names={E:'E',C3:'C₃',C2:'C₂',S4:'S₄',S4b:'S₄³',sig:'σ',rot90:'90°回転だけ'};
   st.style.color = ok?'#5fd08a':'#e2564e';
-  st.textContent = (ok?'✓ 重なった → 対称操作':'✗ 重ならない → 対称操作でない')+`（${names[curOp]}）`;
+  st.textContent = (ok?'✓ 重なった → 対称操作':'✗ 重ならない → 対称操作でない')+`（${NAMES[curOp]}）`;
+}
+function refreshStatus(){
+  if(tval>=0.999){ checkSym(); }
+  else { const st=$('status'); st.style.color='var(--muted)';
+    st.textContent=`操作中… ${Math.round(tval*100)}%（${NAMES[curOp]}）`; }
 }
 
 function fogc(hex,t){ const m=hex.replace('#',''); const bg=[14,17,22]; const f=0.32+0.68*t;
   const r=parseInt(m.substr(0,2),16),g=parseInt(m.substr(2,2),16),b=parseInt(m.substr(4,2),16);
   return `rgb(${(bg[0]+(r-bg[0])*f)|0},${(bg[1]+(g-bg[1])*f)|0},${(bg[2]+(b-bg[2])*f)|0})`; }
-function drawBall(p,r,col,fill){ const c=proj(p), rad=r*c.s;
-  const t=Math.max(0,Math.min(1,(c.z+1.9)/3.8));
+function drawBall(p,r,col,fill,alpha){ const c=proj(p), rad=r*c.s;
+  const t=Math.max(0,Math.min(1,(c.z+2.4)/4.8));
+  ctx.save(); if(alpha!=null) ctx.globalAlpha=alpha;
   if(fill){ const g=ctx.createRadialGradient(c.x-rad*.38,c.y-rad*.38,rad*.08,c.x,c.y,rad);
     g.addColorStop(0, fogc('#ffffff',t)); g.addColorStop(.3, fogc(col,t)); g.addColorStop(1, fogc(col,t*0.4));
     ctx.fillStyle=g; ctx.beginPath();ctx.arc(c.x,c.y,rad,0,7);ctx.fill();
     ctx.lineWidth=1.3;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.stroke();
   } else { ctx.lineWidth=2;ctx.strokeStyle=fogc(col,t); ctx.setLineDash([4,3]);
     ctx.beginPath();ctx.arc(c.x,c.y,rad,0,7);ctx.stroke(); ctx.setLineDash([]); }
-  return c; }
+  ctx.restore(); return c; }
+function line3(a,b,style,w,dash){ const p=proj(a),q=proj(b);
+  ctx.strokeStyle=style;ctx.lineWidth=w;if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([]); }
 
 function draw(){
   ctx.clearRect(0,0,W,H);
   const t=tval;
-  if(document.getElementById('axis').checked && AXISOF[curOp]){
+  const showFcc=$('fcc').checked, showCube=$('cube').checked;
+
+  // --- 対称要素（軸・面）---
+  if($('axis').checked && AXISOF[curOp]){
     const a=AXISOF[curOp];
-    if(a.type==='axis'){ const p=proj([a.v[0]*1.7,a.v[1]*1.7,a.v[2]*1.7]),q=proj([-a.v[0]*1.7,-a.v[1]*1.7,-a.v[2]*1.7]);
-      ctx.strokeStyle='rgba(229,192,123,.8)';ctx.lineWidth=2;ctx.setLineDash([7,5]);
-      ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([]); }
+    if(a.type==='axis') line3([a.v[0]*1.7,a.v[1]*1.7,a.v[2]*1.7],[-a.v[0]*1.7,-a.v[1]*1.7,-a.v[2]*1.7],'rgba(229,192,123,.8)',2,[7,5]);
     if(a.plane||a.type==='plane'){
-      let corners;
-      if(a.type==='plane'){ corners=[[1.6,1.6,-1.6],[1.6,1.6,1.6],[-1.6,-1.6,1.6],[-1.6,-1.6,-1.6]]; }
-      else { corners=[[-1.6,-1.6,0],[1.6,-1.6,0],[1.6,1.6,0],[-1.6,1.6,0]]; }
+      let corners = (a.type==='plane')
+        ? [[1.6,1.6,-1.6],[1.6,1.6,1.6],[-1.6,-1.6,1.6],[-1.6,-1.6,-1.6]]
+        : [[-1.6,-1.6,0],[1.6,-1.6,0],[1.6,1.6,0],[-1.6,1.6,0]];
       ctx.fillStyle='rgba(90,169,230,.13)';ctx.strokeStyle='rgba(90,169,230,.5)';ctx.lineWidth=1;
       ctx.beginPath(); corners.forEach((c,i)=>{const s=proj(c); i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y);});
-      ctx.closePath();ctx.fill();ctx.stroke(); }
+      ctx.closePath();ctx.fill();ctx.stroke();
+    }
   }
   drawAxes();
-  V.forEach(v=>drawBall(v,0.11,'#8a949f',false));
+
+  // --- 外接立方体 ---
+  if(showCube){ CUBE_E.forEach(e=>line3(CUBE[e[0]],CUBE[e[1]],'rgba(180,190,205,.35)',1.4)); }
+
+  // --- FCC(閃亜鉛鉱) まわりの格子（静的）---
+  if(showFcc){
+    // FCC最近接同士のケージ（cuboctahedron）
+    for(let i=0;i<FCC12.length;i++)for(let j=i+1;j<FCC12.length;j++){
+      const d=Math.hypot(FCC12[i][0]-FCC12[j][0],FCC12[i][1]-FCC12[j][1],FCC12[i][2]-FCC12[j][2]);
+      if(Math.abs(d-2*Math.SQRT2)<0.05) line3(FCC12[i],FCC12[j],'rgba(120,133,150,.28)',1);
+    }
+  }
+
+  // --- 参照リング（元の頂点位置）---
+  V.forEach(v=>drawBall(v,0.10,'#8a949f',false));
+
+  // --- 四面体の辺・中心からのボンド ---
   const P=V.map(v=>OPS[curOp](v,t));
   ctx.strokeStyle='rgba(200,210,220,.30)';ctx.lineWidth=2;
   EDGES.forEach(e=>{const p=proj(P[e[0]]),q=proj(P[e[1]]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();});
-  ctx.strokeStyle='rgba(150,160,170,.30)';ctx.lineWidth=2;
+  ctx.strokeStyle='rgba(150,160,170,.35)';ctx.lineWidth=2;
   P.forEach(p=>{const a=proj([0,0,0]),b=proj(p);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
-  const balls=[{p:[0,0,0],r:0.08,c:'#c8d0d8'}].concat(P.map((p,i)=>({p,r:0.17,c:COL[i]})));
+
+  // --- 玉を深度ソートしてまとめて描画 ---
+  const balls=[{p:[0,0,0],r:0.13,c:'#c8d0d8',a:1}];
+  if(showFcc) FCC12.forEach(v=>balls.push({p:v,r:0.12,c:'#6b7787',a:0.6}));
+  P.forEach((p,i)=>balls.push({p,r:0.17,c:COL[i],a:1}));
   balls.sort((a,b)=>rot(a.p)[2]-rot(b.p)[2]);
-  balls.forEach(b=>drawBall(b.p,b.r,b.c,true));
+  balls.forEach(b=>drawBall(b.p,b.r,b.c,true,b.a));
+
   ctx.fillStyle='rgba(154,167,180,.9)';ctx.font='13px Segoe UI';
   if(curOp==='S4'||curOp==='S4b'){ ctx.fillText(t<0.5?'① 90°回転中…':'② 鏡映中…',16,H-16); }
 }
 
-const map={op_S4:'S4',op_S4b:'S4b',op_rot90:'rot90',op_C3:'C3',op_C2:'C2',op_sig:'sig',op_E:'E'};
-Object.keys(map).forEach(id=>document.getElementById(id).onclick=()=>startOp(map[id]));
-document.getElementById('axis').addEventListener('input',draw);
+/* ---- メインループ（再生＋自動回転＋再描画をまとめて）---- */
+let spinning=false;
+function frame(now){
+  const dt=now-lastNow; lastNow=now;
+  if(playing){
+    tval=Math.min(1, tval + (dt/DUR)*playSpeed);
+    $('seek').value=Math.round(tval*1000);
+    refreshStatus();
+    if(tval>=1){ playing=false; updatePlayBtn(); }
+    dirty=true;
+  }
+  if(spinning){ yaw+=0.005; dirty=true; }
+  if(dirty){ draw(); dirty=false; }
+  requestAnimationFrame(frame);
+}
 
-/* ---- 操作：Pointer（マウス＋タッチ共通）＋ ピンチズーム ---- */
+/* ---- 操作ボタン ---- */
+function startOp(name){ curOp=name; tval=0; playing=true; lastNow=performance.now();
+  $('seek').value=0; updatePlayBtn(); refreshStatus(); invalidate(); }
+const map={op_S4:'S4',op_S4b:'S4b',op_rot90:'rot90',op_C3:'C3',op_C2:'C2',op_sig:'sig',op_E:'E'};
+Object.keys(map).forEach(id=>$(id).onclick=()=>startOp(map[id]));
+
+/* ---- 再生 / シーク / 速度 ---- */
+function updatePlayBtn(){ $('play').textContent = playing ? '⏸ 一時停止' : (tval>=1?'↻ もう一度':'▶ 再生'); }
+$('play').onclick=()=>{ if(!playing && tval>=1) tval=0; playing=!playing; lastNow=performance.now(); updatePlayBtn(); invalidate(); };
+$('seek').addEventListener('input',e=>{ tval=e.target.value/1000; playing=false; updatePlayBtn(); refreshStatus(); invalidate(); });
+$('speed').addEventListener('input',e=>{ playSpeed=parseFloat(e.target.value); $('speedv').textContent=playSpeed.toFixed(2)+'×'; });
+
+/* ---- チェックボックス ---- */
+['axis','cube','fcc'].forEach(id=>$(id).addEventListener('change',invalidate));
+$('fcc').addEventListener('change',e=>{ $('leg').style.display=e.target.checked?'block':'none'; });
+$('spin').addEventListener('change',e=>{ spinning=e.target.checked; invalidate(); });
+
+/* ---- 視点操作：Pointer＋ピンチ ---- */
 let dg=false,px=0,py=0,pinchD=0;
 cv.addEventListener('pointerdown',e=>{ dg=true; px=e.clientX; py=e.clientY; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener('pointerup',()=>{dg=false;});
 cv.addEventListener('pointercancel',()=>{dg=false;});
 cv.addEventListener('pointermove',e=>{ if(!dg)return;
   yaw+=(e.clientX-px)*0.01; pitch+=(e.clientY-py)*0.01;
-  pitch=Math.max(-1.55,Math.min(1.55,pitch)); px=e.clientX; py=e.clientY; draw(); });
-cv.addEventListener('wheel',e=>{e.preventDefault();zoom*=Math.exp(-e.deltaY*0.001);zoom=Math.max(0.5,Math.min(3,zoom));draw();},{passive:false});
-/* 2本指ピンチ */
+  pitch=Math.max(-1.55,Math.min(1.55,pitch)); px=e.clientX; py=e.clientY; invalidate(); });
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom*=Math.exp(-e.deltaY*0.001);zoom=Math.max(0.5,Math.min(3.2,zoom));invalidate();},{passive:false});
 function tdist(e){const a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
 cv.addEventListener('touchstart',e=>{ if(e.touches.length===2){ dg=false; pinchD=tdist(e); } },{passive:false});
 cv.addEventListener('touchmove',e=>{ if(e.touches.length===2){ e.preventDefault();
-  const d=tdist(e); if(pinchD) zoom*=d/pinchD; zoom=Math.max(0.5,Math.min(3,zoom)); pinchD=d; draw(); } },{passive:false});
+  const d=tdist(e); if(pinchD) zoom*=d/pinchD; zoom=Math.max(0.5,Math.min(3.2,zoom)); pinchD=d; invalidate(); } },{passive:false});
 
-let spinning=false;
-document.getElementById('spin').addEventListener('change',e=>{spinning=e.target.checked;if(spinning)loop();});
-function loop(){if(!spinning)return;yaw+=0.005;if(!animating)draw();requestAnimationFrame(loop);}
-
-resize(); draw();
+resize(); updatePlayBtn(); requestAnimationFrame(frame);
 </script>
 </body>
 </html>
