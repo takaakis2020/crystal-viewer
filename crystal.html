@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>結晶構造ビューア</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#0a0e1a;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Segoe UI",sans-serif; color:#e8eefc; }
+  #c { display:block; width:100%; height:100%; touch-action:none; }
+  .ui { position:fixed; left:0; right:0; bottom:0; padding:14px 12px calc(14px + env(safe-area-inset-bottom));
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+    background:linear-gradient(to top,rgba(6,9,18,.85),rgba(6,9,18,0)); }
+  button { font:inherit; font-size:15px; font-weight:600; color:#dbe6ff;
+    background:rgba(70,95,160,.28); border:1px solid rgba(130,165,255,.35);
+    padding:11px 16px; border-radius:12px; cursor:pointer; backdrop-filter:blur(6px);
+    transition:.15s; user-select:none; }
+  button:active { transform:scale(.94); }
+  button.on { background:rgba(90,140,255,.55); border-color:rgba(160,200,255,.9); }
+  .title { position:fixed; top:calc(12px + env(safe-area-inset-top)); left:0; right:0; text-align:center;
+    font-size:14px; letter-spacing:.08em; color:#9fb4e8; pointer-events:none; }
+  .hint { position:fixed; top:calc(38px + env(safe-area-inset-top)); left:0; right:0; text-align:center;
+    font-size:12px; color:#5a6b96; pointer-events:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="title" id="ttl">単純立方格子 (Simple Cubic)</div>
+<div class="hint">ドラッグで回転 ・ ピンチ/ホイールで拡大</div>
+<div class="ui">
+  <button id="b0" class="on">単純立方</button>
+  <button id="b1">体心立方 BCC</button>
+  <button id="b2">面心立方 FCC</button>
+  <button id="b3">ダイヤモンド</button>
+  <button id="bspin" class="on">自動回転</button>
+</div>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+// ---- 結晶構造の定義（基本格子 N×N×N を生成）----
+const N = 3; // セル数
+const structures = {
+  sc:   { name:"単純立方格子 (Simple Cubic)",  basis:[[0,0,0]] },
+  bcc:  { name:"体心立方格子 (BCC)",           basis:[[0,0,0],[.5,.5,.5]] },
+  fcc:  { name:"面心立方格子 (FCC)",           basis:[[0,0,0],[.5,.5,0],[.5,0,.5],[0,.5,.5]] },
+  diam: { name:"ダイヤモンド構造 (Diamond)",   basis:[[0,0,0],[.5,.5,0],[.5,0,.5],[0,.5,.5],
+                                                    [.25,.25,.25],[.75,.75,.25],[.75,.25,.75],[.25,.75,.75]] },
+};
+function buildAtoms(key){
+  const b = structures[key].basis, pts = [];
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++)for(let z=0;z<N;z++)
+    for(const v of b) pts.push([x+v[0]-N/2, y+v[1]-N/2, z+v[2]-N/2]);
+  // 近接原子を結ぶボンドを計算
+  const bonds = [];
+  const dmax = (key==='diam') ? 0.44 : (key==='fcc'||key==='bcc') ? 0.87 : 1.01;
+  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+    const dx=pts[i][0]-pts[j][0], dy=pts[i][1]-pts[j][1], dz=pts[i][2]-pts[j][2];
+    const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if(d < dmax) bonds.push([i,j]);
+  }
+  return {pts, bonds};
+}
+let cur='sc', model=buildAtoms('sc');
+
+// ---- 3D 回転・投影 ----
+let rotX=-0.5, rotY=0.6, zoom=1, spin=true;
+function project(p){
+  let [x,y,z]=p;
+  // Y軸回転
+  let cy=Math.cos(rotY), sy=Math.sin(rotY);
+  let x1=x*cy - z*sy, z1=x*sy + z*cy;
+  // X軸回転
+  let cx=Math.cos(rotX), sx=Math.sin(rotX);
+  let y1=y*cx - z1*sx, z2=y*sx + z1*cx;
+  const scale = Math.min(W,H) * 0.11 * zoom;
+  const persp = 6 / (6 + z2);
+  return { sx: W/2 + x1*scale*persp, sy: H/2 + y1*scale*persp, depth:z2, r:persp };
+}
+
+function draw(){
+  ctx.fillStyle='#0a0e1a'; ctx.fillRect(0,0,W,H);
+  const P = model.pts.map(project);
+  // ボンド（奥から）
+  ctx.lineWidth=1.4;
+  for(const [i,j] of model.bonds){
+    const a=P[i], b=P[j], dep=(a.depth+b.depth)/2;
+    const t=Math.max(0,Math.min(1,(dep+2.5)/5));
+    ctx.strokeStyle=`rgba(120,160,255,${0.12+0.30*(1-t)})`;
+    ctx.beginPath(); ctx.moveTo(a.sx,a.sy); ctx.lineTo(b.sx,b.sy); ctx.stroke();
+  }
+  // 原子（奥→手前ソート）
+  const order=P.map((p,i)=>i).sort((a,b)=>P[b].depth-P[a].depth);
+  for(const i of order){
+    const p=P[i];
+    const t=Math.max(0,Math.min(1,(p.depth+2.5)/5)); // 0=手前
+    const rad=(7*p.r)*(1-0.25*t);
+    const g=ctx.createRadialGradient(p.sx-rad*0.3,p.sy-rad*0.3,rad*0.2,p.sx,p.sy,rad);
+    const bright=1-0.45*t;
+    g.addColorStop(0,`rgba(${170*bright+50},${210*bright+30},255,1)`);
+    g.addColorStop(1,`rgba(${40*bright},${90*bright},${200*bright+30},1)`);
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(p.sx,p.sy,rad,0,7); ctx.fill();
+  }
+}
+function loop(){
+  if(spin) rotY+=0.005;
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---- 操作（マウス＆タッチ、ピンチ）----
+let drag=false, lx=0, ly=0, pinchD=0;
+function pt(e){ return e.touches? e.touches[0] : e; }
+cv.addEventListener('pointerdown',e=>{ drag=true; lx=e.clientX; ly=e.clientY; });
+window.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  rotY += (e.clientX-lx)*0.008; rotX += (e.clientY-ly)*0.008;
+  lx=e.clientX; ly=e.clientY;
+});
+window.addEventListener('pointerup',()=>drag=false);
+cv.addEventListener('wheel',e=>{ e.preventDefault(); zoom*=Math.exp(-e.deltaY*0.0011); zoom=Math.max(0.4,Math.min(4,zoom)); },{passive:false});
+// ピンチ
+cv.addEventListener('touchstart',e=>{ if(e.touches.length===2){ drag=false; pinchD=tdist(e); }},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  if(e.touches.length===2){ e.preventDefault(); const d=tdist(e); if(pinchD) zoom*=d/pinchD; zoom=Math.max(0.4,Math.min(4,zoom)); pinchD=d; }
+},{passive:false});
+function tdist(e){ const a=e.touches[0],b=e.touches[1]; return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY); }
+
+// ---- ボタン ----
+const btns={sc:'b0',bcc:'b1',fcc:'b2',diam:'b3'};
+function setStruct(k){
+  cur=k; model=buildAtoms(k);
+  document.getElementById('ttl').textContent=structures[k].name;
+  for(const key in btns) document.getElementById(btns[key]).classList.toggle('on',key===k);
+}
+document.getElementById('b0').onclick=()=>setStruct('sc');
+document.getElementById('b1').onclick=()=>setStruct('bcc');
+document.getElementById('b2').onclick=()=>setStruct('fcc');
+document.getElementById('b3').onclick=()=>setStruct('diam');
+document.getElementById('bspin').onclick=e=>{ spin=!spin; e.target.classList.toggle('on',spin); };
+
+resize(); loop();
+</script>
+</body>
+</html>
