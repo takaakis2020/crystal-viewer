@@ -79,6 +79,7 @@
       <h2>表示オプション</h2>
       <label class="row"><input type="checkbox" id="axis" checked> 対称要素（軸・面）を表示</label>
       <label class="row"><input type="checkbox" id="spin"> ゆっくり自動回転（視点）</label>
+      <button id="reset" style="margin-top:8px">⟳ 視点をデフォルトに戻す</button>
     </div>
   </div>
 </div>
@@ -115,7 +116,8 @@ const CUBE=[[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1
 const CUBE_E=[];
 for(let i=0;i<8;i++)for(let j=i+1;j<8;j++){let d=0;for(let k=0;k<3;k++)if(CUBE[i][k]!==CUBE[j][k])d++;if(d===1)CUBE_E.push([i,j]);}
 
-let yaw=0.7,pitch=-0.45,zoom=1;
+const DEF_YAW=2.44, DEF_PITCH=0.42;   // 標準ビュー：y=上, z=奥, 立方体を正面から
+let yaw=DEF_YAW,pitch=DEF_PITCH,zoom=1;
 function rot(p){ const cy=Math.cos(yaw),sy=Math.sin(yaw); let x=p[0],y=p[1],z=p[2];
   let x1=x*cy+z*sy, z1=-x*sy+z*cy; const cp=Math.cos(pitch),sp=Math.sin(pitch);
   let y1=y*cp-z1*sp, z2=y*sp+z1*cp; return [x1,y1,z2]; }
@@ -279,6 +281,7 @@ $('speed').addEventListener('input',e=>{ playSpeed=parseFloat(e.target.value); $
 $('fcc').addEventListener('change',e=>{ $('leg').style.display=e.target.checked?'block':'none';
   zoom = e.target.checked ? 0.72 : 1; invalidate(); });
 $('spin').addEventListener('change',e=>{ spinning=e.target.checked; invalidate(); });
+$('reset').onclick=()=>{ yaw=DEF_YAW; pitch=DEF_PITCH; zoom=$('fcc').checked?0.72:1; invalidate(); };
 
 /* ---- 視点操作：Pointer＋ピンチ ---- */
 let dg=false,px=0,py=0,pinchD=0;

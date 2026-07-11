@@ -83,6 +83,7 @@
       <label class="row"><input type="checkbox" id="parity" checked> パリティで色分け（2つの正四面体）</label>
       <label class="row"><input type="checkbox" id="axes" checked> [111]/[100] 軸・L/X 点を表示</label>
       <label class="row"><input type="checkbox" id="spin"> ゆっくり自動回転</label>
+      <button id="reset" style="margin-top:8px">⟳ 視点をデフォルトに戻す</button>
     </div>
   </div>
 </div>
@@ -100,7 +101,8 @@ const WARM=['#e05c5c','#e0925c','#e0c25c','#c9e05c'];
 const COOL=['#5cc8e0','#5c8ce0','#8c5ce0','#c05ce0'];
 const key=v=>v.map(x=>Math.round(x)).join(',');
 
-let yaw=0.62,pitch=-0.42,zoom=1;
+const DEF_YAW=2.44, DEF_PITCH=0.42;   // 標準ビュー：y=上, z=奥, 立方体を正面から
+let yaw=DEF_YAW,pitch=DEF_PITCH,zoom=1;
 function rot(p){ const cy=Math.cos(yaw),sy=Math.sin(yaw); let x=p[0],y=p[1],z=p[2];
   let x1=x*cy+z*sy, z1=-x*sy+z*cy; const cp=Math.cos(pitch),sp=Math.sin(pitch);
   let y1=y*cp-z1*sp, z2=y*sp+z1*cp; return [x1,y1,z2]; }
@@ -272,6 +274,7 @@ $('seek').addEventListener('input',e=>{ tval=e.target.value/1000; playing=false;
 $('speed').addEventListener('input',e=>{ playSpeed=parseFloat(e.target.value); $('speedv').textContent=playSpeed.toFixed(2)+'×'; });
 ['parity','axes'].forEach(id=>$(id).addEventListener('change',invalidate));
 $('spin').addEventListener('change',e=>{ spinning=e.target.checked; invalidate(); });
+$('reset').onclick=()=>{ yaw=DEF_YAW; pitch=DEF_PITCH; zoom=1; invalidate(); };
 
 /* ---- 視点操作 ---- */
 let dg=false,px=0,py=0,pinchD=0;
