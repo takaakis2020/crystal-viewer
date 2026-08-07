@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Λ線と波数群 C3v ビューア</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117; --bg2:#151b24; --line:#2a3441; --fg:#e6edf3; --dim:#8b98a8;
+  --acc:#ffd166; --acc2:#56b6ff; --acc3:#ff8a5b; --acc4:#b7f36a;
+  --m1:#ff5c8a; --m2:#5ce1e6; --m3:#a78bfa;
+}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:"Segoe UI","Yu Gothic UI","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+  font-size:14px; line-height:1.7; overflow:hidden;
+}
+#app{display:flex; height:100vh}
+#stage{flex:1; position:relative; min-width:0; background:radial-gradient(ellipse at 45% 40%,#182130 0%,#0d1117 70%)}
+canvas{display:block; width:100%; height:100%; cursor:grab}
+canvas.drag{cursor:grabbing}
+#hud{position:absolute; left:16px; top:14px; pointer-events:none; font-size:12px; color:var(--dim)}
+#hud b{color:var(--fg); font-weight:600}
+#hud .big{font-size:26px; color:var(--acc); font-weight:700; letter-spacing:.5px; line-height:1.2}
+#legend{position:absolute; left:16px; bottom:14px; font-size:11.5px; color:var(--dim); pointer-events:none}
+#legend span{display:inline-flex; align-items:center; margin-right:14px}
+#legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px}
+
+aside{width:430px; min-width:430px; background:var(--bg2); border-left:1px solid var(--line);
+  display:flex; flex-direction:column; overflow:hidden}
+header{padding:14px 18px 10px; border-bottom:1px solid var(--line)}
+header h1{font-size:15px; font-weight:700; letter-spacing:.02em}
+header p{font-size:11.5px; color:var(--dim); margin-top:2px}
+#nav{display:flex; flex-wrap:wrap; gap:5px; padding:10px 14px; border-bottom:1px solid var(--line)}
+#nav button{background:#1e2733; color:var(--dim); border:1px solid var(--line); border-radius:6px;
+  padding:4px 9px; font-size:11.5px; cursor:pointer; font-family:inherit}
+#nav button:hover{background:#25303f; color:var(--fg); border-color:#4a5a70}
+#nav button.on{background:var(--acc); color:#111; border-color:var(--acc); font-weight:700}
+#body{flex:1; overflow-y:auto; padding:16px 18px 40px}
+#body h2{font-size:16px; color:var(--acc); margin-bottom:8px}
+#body p{margin-bottom:10px}
+#body .k{color:var(--acc2); font-weight:600}
+#body .o{color:var(--acc3); font-weight:600}
+#body .g{color:var(--acc4); font-weight:600}
+#body .note{font-size:12px; color:var(--dim); border-left:2px solid var(--line); padding-left:10px; margin:12px 0}
+.mono{font-family:"Cascadia Mono",Consolas,monospace}
+#ctl{padding:12px 18px; border-top:1px solid var(--line); background:#111823}
+#ctl .row{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:7px}
+#ctl .row:last-child{margin-bottom:0}
+#ctl button{background:#233042; color:var(--fg); border:1px solid #33445a; border-radius:6px;
+  padding:5px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+#ctl button:hover{background:#2e3f56}
+#ctl button.warn{border-color:#7a3b4a; background:#3a2029}
+#ctl button.warn:hover{background:#4d2a35}
+#ctl label{font-size:11.5px; color:var(--dim); display:inline-flex; align-items:center; gap:5px; cursor:pointer}
+#ctl input[type=range]{flex:1; min-width:150px; accent-color:var(--acc)}
+#ctl .tag{font-size:11px; color:var(--dim)}
+table.ct{width:100%; border-collapse:collapse; margin:10px 0; font-size:12.5px}
+table.ct th,table.ct td{border:1px solid var(--line); padding:5px 7px; text-align:center}
+table.ct th{background:#1e2733; color:var(--acc); font-weight:600}
+table.ct td:first-child{color:var(--acc2); font-weight:700}
+table.ct td.b{text-align:left; color:var(--dim); font-size:11.5px}
+#glist{font-size:12px; margin-top:8px}
+#glist .op{display:inline-block; background:#1e2733; border:1px solid var(--line); border-radius:5px;
+  padding:2px 7px; margin:2px 3px 2px 0; font-family:"Cascadia Mono",Consolas,monospace}
+#glist .op.p{border-color:#3a5a3a; background:#1b2a1b}
+#glist .op.i{border-color:#5a3a5a; background:#2a1b2a}
+kbd{background:#1e2733;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px}
+@media(max-width:1000px){#app{flex-direction:column} aside{width:100%;min-width:0;height:52vh} #stage{height:48vh}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hud"></div>
+    <div id="legend"></div>
+  </div>
+  <aside>
+    <header>
+      <h1>なぜ Λ 線の波数群は C<sub>3v</sub> なのか</h1>
+      <p>立方晶 → [111] → (111)面 → 逆空間 → 小群 → 既約表現 を順に見る</p>
+    </header>
+    <div id="nav"></div>
+    <div id="body"></div>
+    <div id="ctl"></div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* ============================ ベクトル・行列 ============================ */
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const vlen=a=>Math.hypot(a[0],a[1],a[2]);
+const norm=a=>{const l=vlen(a)||1;return[a[0]/l,a[1]/l,a[2]/l];};
+const mv=(M,v)=>[dot(M[0],v),dot(M[1],v),dot(M[2],v)];
+const det3=M=>M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])
+             -M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])
+             +M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]);
+function rotM(axis,ang){
+  const [x,y,z]=norm(axis),c=Math.cos(ang),s=Math.sin(ang),t=1-c;
+  return [[t*x*x+c,t*x*y-s*z,t*x*z+s*y],
+          [t*x*y+s*z,t*y*y+c,t*y*z-s*x],
+          [t*x*z-s*y,t*y*z+s*x,t*z*z+c]];
+}
+
+/* ============================ 立方点群 Oh (48個) ============================ */
+// 符号つき置換行列 = 3!(軸の並べ替え) × 2^3(向きの反転) = 48
+const PERMS=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+const OPS=(()=>{const o=[];
+  for(const p of PERMS) for(let s=0;s<8;s++){
+    const M=[[0,0,0],[0,0,0],[0,0,0]];
+    for(let i=0;i<3;i++) M[i][p[i]]=((s>>i)&1)?-1:1;
+    o.push(M);
+  } return o;})();
+
+// 整数方向ベクトル（固有ベクトル探索用）
+const DIRS=(()=>{const d=[];
+  for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++){
+    if(!x&&!y&&!z)continue;
+    if(d.some(v=>v[0]===-x&&v[1]===-y&&v[2]===-z))continue;
+    d.push([x,y,z]);
+  } return d;})();
+
+// 最初の非ゼロ成分が正になるよう向きを揃える（[1̄1̄1̄] ではなく [111] と表示するため）
+function canon(v){ for(const c of v){ if(c>0) return v; if(c<0) return v.map(x=>-x); } return v; }
+function millersRaw(v){ // [1 -1 0] → [11̄0]（向きをそのまま表示：星の枝の区別に使う）
+  return "["+v.map(x=>x<0?String(-x)+"̄":String(x)).join("")+"]";
+}
+function millers(v,br){ // 軸・面の表示（向きは意味を持たないので符号を揃える）
+  const s=canon(v).map(x=>x<0?String(-x)+"̄":String(x)).join("");
+  return br==="p"?"("+s+")":"["+s+"]";
+}
+function describeOp(M){
+  const d=det3(M), tr=M[0][0]+M[1][1]+M[2][2];
+  const eig=ev=>{for(const v of DIRS){const w=mv(M,v);
+      if(w[0]===ev*v[0]&&w[1]===ev*v[1]&&w[2]===ev*v[2])return v;} return null;};
+  if(d>0){
+    if(tr===3)  return {n:"E",       cls:"E",  proper:true};
+    if(tr===1)  return {n:"C₄",      cls:"C4", proper:true, ax:eig(1)};
+    if(tr===0)  return {n:"C₃",      cls:"C3", proper:true, ax:eig(1)};
+    if(tr===-1) return {n:"C₂",      cls:"C2", proper:true, ax:eig(1)};
+  }else{
+    if(tr===-3) return {n:"i",       cls:"i",  proper:false};
+    if(tr===1)  return {n:"σ",       cls:"m",  proper:false, nm:eig(-1)};
+    if(tr===0)  return {n:"S₆",      cls:"S6", proper:false, ax:eig(-1)};
+    if(tr===-1) return {n:"S₄",      cls:"S4", proper:false, ax:eig(-1)};
+  }
+  return {n:"?",cls:"?"};
+}
+function opLabel(M){
+  const o=describeOp(M);
+  if(o.cls==="E"||o.cls==="i") return o.n;
+  if(o.cls==="m") return o.n+" "+millers(o.nm,"p");
+  return o.n+" "+millers(o.ax);
+}
+// 逆格子ベクトルか？ FCCの逆格子 = BCC : 成分が全部偶数 or 全部奇数 (単位 2π/a)
+function isG(v){
+  const r=v.map(x=>Math.round(x));
+  for(let i=0;i<3;i++) if(Math.abs(v[i]-r[i])>1e-9) return false;
+  const p=r.map(x=>((x%2)+2)%2);
+  return p[0]===p[1]&&p[1]===p[2];
+}
+// 波数群（小群） G_k = { R ∈ Oh | R k = k + G }
+function littleGroup(k){ return OPS.filter(M=>isG(sub(mv(M,k),k))); }
+// 方向ベクトルの安定化群（実空間用・G のずれは許さない厳密版）
+function stabilizer(v){ return OPS.filter(M=>{const w=mv(M,v);
+  return Math.abs(w[0]-v[0])<1e-9&&Math.abs(w[1]-v[1])<1e-9&&Math.abs(w[2]-v[2])<1e-9;}); }
+function starOf(k){   // 幾何的に異なる行き先（描画用）
+  const out=[],seen=new Set();
+  for(const M of OPS){const w=mv(M,k);const key=w.map(x=>x.toFixed(4)).join(",");
+    if(!seen.has(key)){seen.add(key);out.push(w);} }
+  return out;
+}
+// 逆格子ベクトル差を同一視した星の枝の数（位数 × 枝 = 48 が成り立つのはこちら）
+function starCount(k){
+  const reps=[];
+  for(const M of OPS){
+    const w=mv(M,k);
+    if(!reps.some(u=>isG(sub(w,u)))) reps.push(w);
+  }
+  return reps.length;
+}
+function groupName(order){
+  if(order===48) return "O<sub>h</sub>（立方点群まるごと）";
+  if(order===16) return "D<sub>4h</sub>";
+  if(order===12) return "D<sub>3d</sub>";
+  if(order===8)  return "C<sub>4v</sub>";
+  if(order===6)  return "C<sub>3v</sub>";
+  if(order===4)  return "C<sub>2v</sub>";
+  return "位数 "+order;
+}
+
+/* ============================ 描画エンジン（自前・依存ゼロ） ============================ */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let W=0,H=0;
+const cam={yaw:-0.62,pitch:0.42,dist:6,fov:1800};
+function resize(){
+  const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  cv.width=r.width*dpr; cv.height=r.height*dpr; W=r.width; H=r.height;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function viewRot(p){
+  const cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw);
+  const x1=p[0]*cy+p[2]*sy, z1=-p[0]*sy+p[2]*cy, y1=p[1];
+  const cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch);
+  return [x1, y1*cp-z1*sp, y1*sp+z1*cp];
+}
+function proj(p){
+  const v=viewRot(p), s=cam.fov/Math.max(0.4,cam.dist-v[2]);
+  return {x:W/2+v[0]*s, y:H/2-v[1]*s, s, d:v[2]};
+}
+let items=[];
+const push=(d,fn)=>items.push({d,fn});
+function flush(){
+  items.sort((a,b)=>a.d-b.d);
+  for(const it of items) it.fn();
+  items=[];
+}
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const shade=(c,f)=>`rgb(${Math.min(255,c[0]*f|0)},${Math.min(255,c[1]*f|0)},${Math.min(255,c[2]*f|0)})`;
+
+function dLine(a,b,col,w=1.4,dash=null,depthBias=0){
+  const A=proj(a),B=proj(b);
+  push((A.d+B.d)/2+depthBias,()=>{
+    ctx.save(); ctx.strokeStyle=col; ctx.lineWidth=w; if(dash)ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); ctx.restore();
+  });
+}
+function dPoly(pts,fill,stroke,lw=1,bias=0){
+  const P=pts.map(proj); const d=P.reduce((s,p)=>s+p.d,0)/P.length+bias;
+  push(d,()=>{
+    ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+  });
+}
+function dBall(c,r,col,alpha=1){
+  const P=proj(c), rr=Math.max(1.5,r*P.s);
+  push(P.d,()=>{
+    const g=ctx.createRadialGradient(P.x-rr*.35,P.y-rr*.4,rr*.08,P.x,P.y,rr);
+    g.addColorStop(0,shade(col,1.55)); g.addColorStop(.6,shade(col,1.0)); g.addColorStop(1,shade(col,.55));
+    ctx.globalAlpha=alpha; ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(P.x,P.y,rr,0,6.2832); ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle="rgba(0,0,0,.45)"; ctx.stroke(); ctx.globalAlpha=1;
+  });
+}
+function dGhost(c,r,col){
+  const P=proj(c), rr=Math.max(1.5,r*P.s);
+  push(P.d-100,()=>{
+    ctx.setLineDash([3,3]); ctx.strokeStyle=rgba(col,.55); ctx.lineWidth=1.3;
+    ctx.beginPath(); ctx.arc(P.x,P.y,rr,0,6.2832); ctx.stroke(); ctx.setLineDash([]);
+  });
+}
+function dArrow(a,b,col,w=2.4,head=9){
+  const A=proj(a),B=proj(b);
+  push(Math.max(A.d,B.d)+.002,()=>{
+    const ang=Math.atan2(B.y-A.y,B.x-A.x);
+    ctx.strokeStyle=col; ctx.lineWidth=w; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(A.x,A.y);
+    ctx.lineTo(B.x-Math.cos(ang)*head*.7,B.y-Math.sin(ang)*head*.7); ctx.stroke();
+    ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(B.x,B.y);
+    ctx.lineTo(B.x-Math.cos(ang-.42)*head,B.y-Math.sin(ang-.42)*head);
+    ctx.lineTo(B.x-Math.cos(ang+.42)*head,B.y-Math.sin(ang+.42)*head);
+    ctx.closePath(); ctx.fill();
+  });
+}
+function dText(p,txt,col,dx=0,dy=0,font="600 13px 'Segoe UI',sans-serif",halo=true){
+  const P=proj(p);
+  push(1e6,()=>{
+    ctx.font=font; ctx.textAlign="center"; ctx.textBaseline="middle";
+    if(halo){ctx.lineWidth=3.5;ctx.strokeStyle="rgba(10,14,20,.9)";ctx.strokeText(txt,P.x+dx,P.y+dy);}
+    ctx.fillStyle=col; ctx.fillText(txt,P.x+dx,P.y+dy);
+  });
+}
+
+/* ============================ 幾何：実空間 FCC / ダイヤモンド ============================ */
+const C=[-.5,-.5,-.5];                    // 立方体の中心を原点へ
+const sh=p=>add(p,C);
+const CORNERS=[];
+for(const x of[0,1])for(const y of[0,1])for(const z of[0,1]) CORNERS.push([x,y,z]);
+const FACES=[[.5,.5,0],[.5,.5,1],[.5,0,.5],[.5,1,.5],[0,.5,.5],[1,.5,.5]];
+const BASIS=[[.25,.25,.25],[.75,.75,.25],[.75,.25,.75],[.25,.75,.75]];
+const COL={corner:[255,138,91],face:[86,182,255],basis:[183,243,106],
+           A:[255,138,91],B:[86,182,255],Cc:[183,243,106]};
+
+function atomList(){
+  const a=CORNERS.map(p=>({p:sh(p),t:"corner",layer:p[0]+p[1]+p[2]}))
+        .concat(FACES.map(p=>({p:sh(p),t:"face",layer:p[0]+p[1]+p[2]})));
+  if(S.structure==="diamond") a.push(...BASIS.map(p=>({p:sh(p),t:"basis",layer:-1})));
+  return a;
+}
+const CUBE_EDGES=(()=>{const e=[];
+  for(let i=0;i<8;i++)for(let j=i+1;j<8;j++){
+    const d=sub(CORNERS[i],CORNERS[j]); if(Math.abs(vlen(d)-1)<1e-6) e.push([sh(CORNERS[i]),sh(CORNERS[j])]);
+  } return e;})();
+
+function bondList(atoms,dmax){
+  const b=[];
+  for(let i=0;i<atoms.length;i++)for(let j=i+1;j<atoms.length;j++){
+    const d=vlen(sub(atoms[i].p,atoms[j].p));
+    if(d<dmax) b.push([atoms[i].p,atoms[j].p]);
+  } return b;
+}
+// x+y+z = n の (111) 層（六角形）
+function layerRing(n){
+  const pts=CORNERS.concat(FACES).filter(p=>Math.abs(p[0]+p[1]+p[2]-n)<1e-6).map(sh);
+  if(pts.length===0) return null;
+  const c=mul(pts.reduce(add,[0,0,0]),1/pts.length);
+  if(pts.length<3) return {pts,c};
+  const e3=norm([1,1,1]), e1=norm(sub(pts[0],c)), e2=cross(e3,e1);
+  pts.sort((a,b)=>Math.atan2(dot(sub(a,c),e2),dot(sub(a,c),e1))
+                 -Math.atan2(dot(sub(b,c),e2),dot(sub(b,c),e1)));
+  return {pts,c};
+}
+
+/* ============================ 幾何：逆空間 ブリルアンゾーン ============================ */
+// FCC の逆格子は BCC → 第一BZ は切頂八面体。頂点は (1,½,0) の全置換・全符号（24個, 単位 2π/a）
+const BZV=(()=>{const out=[],seen=new Set(),vals=[1,.5,0];
+  for(const p of PERMS)for(const s1 of[1,-1])for(const s2 of[1,-1])for(const s3 of[1,-1]){
+    const v=[0,0,0]; v[p[0]]=vals[0]*s1; v[p[1]]=vals[1]*s2; v[p[2]]=vals[2]*s3;
+    const k=v.map(x=>x.toFixed(3)).join(","); if(!seen.has(k)){seen.add(k);out.push(v);}
+  } return out;})();
+const BZF=(()=>{
+  const centers=[];
+  for(const sx of[1,-1])for(const sy of[1,-1])for(const sz of[1,-1]) centers.push({c:[.5*sx,.5*sy,.5*sz],hex:true});
+  for(const i of[0,1,2])for(const s of[1,-1]){const c=[0,0,0];c[i]=s;centers.push({c,hex:false});}
+  return centers.map(({c,hex})=>{
+    const n=norm(c), d=vlen(c);
+    const vs=BZV.filter(v=>Math.abs(dot(v,n)-d)<1e-6);
+    const e1=norm(sub(vs[0],c)), e2=cross(n,e1);
+    vs.sort((a,b)=>Math.atan2(dot(sub(a,c),e2),dot(sub(a,c),e1))
+                  -Math.atan2(dot(sub(b,c),e2),dot(sub(b,c),e1)));
+    return {c,n,hex,vs};
+  });
+})();
+const BZE=(()=>{const e=[],seen=new Set();
+  for(const f of BZF) for(let i=0;i<f.vs.length;i++){
+    const a=f.vs[i], b=f.vs[(i+1)%f.vs.length];
+    const k=[a,b].map(v=>v.map(x=>x.toFixed(3)).join(",")).sort().join("|");
+    if(!seen.has(k)){seen.add(k);e.push([a,b]);}
+  } return e;})();
+const L_PT=[.5,.5,.5], X_PT=[1,0,0], W_PT=[1,.5,0], K_PT=[.75,.75,0];
+
+/* ============================ 状態 ============================ */
+const S={
+  step:0, structure:"fcc",
+  showCube:true, showAtoms:true, showBonds:false, showAxis:false,
+  showLayers:false, showMirrors:false, showStar:false, showAllAxes:false,
+  mode:"real", kt:0.55, showKStar:false, testK:null,
+  anim:{on:false,kind:null,axis:null,n:null,ang:0,t:0,label:""}
+};
+const A=S.anim;
+
+function Txf(p){
+  if(!A.on) return p;
+  if(A.kind==="rot") return mv(rotM(A.axis,A.ang*A.t),p);
+  const n=norm(A.n), s=2*A.t-1;
+  return sub(p,mul(n,(1+s)*dot(p,n)));
+}
+function runOp(kind,vec,ang,label,dur=1100){
+  A.on=true; A.kind=kind; A.axis=vec; A.n=vec; A.ang=ang; A.t=0; A.label=label;
+  A.t0=performance.now(); A.dur=dur;
+}
+function tickAnim(now){
+  if(!A.on) return;
+  let u=(now-A.t0)/A.dur;
+  if(u>=1){ A.t=1; if(now-A.t0>A.dur+700){A.on=false;} }
+  else A.t=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;   // easeInOutQuad
+}
+
+/* ============================ シーン描画 ============================ */
+function drawReal(){
+  const atoms=atomList();
+  const R=[.055,.048,.042];
+  // 立方体
+  if(S.showCube) for(const [a,b] of CUBE_EDGES) dLine(Txf(a),Txf(b),"rgba(140,158,180,.55)",1.3);
+  // (111) 層
+  if(S.showLayers){
+    const cols=[COL.A,COL.B,COL.Cc,COL.A], names=["A","B","C","A"];
+    for(let n=0;n<=3;n++){
+      const r=layerRing(n); if(!r) continue;
+      if(r.pts.length>=3){
+        dPoly(r.pts.map(Txf),rgba(cols[n],.13),rgba(cols[n],.85),1.7);
+        // 面内の最近接ボンド → 三角格子（各原子のまわりに6個＝正六角形）が見える
+        for(let i=0;i<r.pts.length;i++)for(let j=i+1;j<r.pts.length;j++)
+          if(Math.abs(vlen(sub(r.pts[i],r.pts[j]))-Math.SQRT1_2)<1e-6)
+            dLine(Txf(r.pts[i]),Txf(r.pts[j]),rgba(cols[n],.55),1.4);
+      }
+      dText(Txf(add(r.c,mul(norm([1,1,1]),.06))),names[n],rgba(cols[n],1),
+            r.pts.length<3?26:0,r.pts.length<3?-20:0,"700 15px 'Segoe UI',sans-serif");
+    }
+  }
+  // 鏡面
+  if(S.showMirrors){
+    const ns=[[1,-1,0],[0,1,-1],[-1,0,1]], cs=[[255,92,138],[92,225,230],[167,139,250]];
+    ns.forEach((n,i)=>{
+      const e3=norm([1,1,1]), e1=norm(n), e2=cross(e1,e3);
+      const quad=[add(mul(e3,.85),mul(e2,.85)),add(mul(e3,.85),mul(e2,-.85)),
+                  add(mul(e3,-.85),mul(e2,-.85)),add(mul(e3,-.85),mul(e2,.85))];
+      dPoly(quad.map(Txf),rgba(cs[i],.13),rgba(cs[i],.7),1.4,-.001);
+      dText(Txf(add(mul(e3,.62),mul(e2,.78))),"m"+(i+1)+" "+millers(n,"p"),rgba(cs[i],1),0,0,"600 12px 'Segoe UI',sans-serif");
+    });
+  }
+  // [111] 軸
+  if(S.showAxis){
+    const u=norm([1,1,1]);
+    dLine(Txf(mul(u,-1.15)),Txf(mul(u,1.15)),"rgba(255,209,102,.35)",7);
+    dArrow(Txf(mul(u,-.87)),Txf(mul(u,1.1)),"#ffd166",2.6,11);
+    dText(Txf(mul(u,1.24)),"[111]","#ffd166",0,0,"700 15px 'Segoe UI',sans-serif");
+  }
+  // 4本の体対角線（星）
+  if(S.showStar){
+    const st=starOf([1,1,1]);
+    for(const v of st){
+      const u=mul(norm(v),.95), same=(v[0]===1&&v[1]===1&&v[2]===1);
+      dArrow([0,0,0],Txf(u),same?"#ffd166":"rgba(120,140,165,.8)",same?3.2:1.6,same?12:8);
+      const tip=Txf(mul(u,1.22)), P=proj(tip);
+      const dx=Math.abs(P.x-W/2)<28?30:0;   // 画面中央の縦線上で重なるラベルを横にずらす
+      dText(tip,millersRaw(v),same?"#ffd166":"rgba(140,158,180,.9)",dx,0,
+            same?"700 14px 'Segoe UI'":"500 11px 'Segoe UI'");
+    }
+  }
+  // 軸ラベル
+  if(!S.showStar){
+    const ax=[[[1,0,0],"x"],[[0,1,0],"y"],[[0,0,1],"z"]];
+    for(const [v,nm] of ax){
+      dArrow([0,0,0],Txf(mul(v,.95)),"rgba(120,140,165,.8)",1.6,7);
+      dText(Txf(mul(v,1.07)),nm,"rgba(160,178,200,.95)",0,0,"600 12px 'Segoe UI'");
+    }
+  }
+  // 結合
+  if(S.showBonds){
+    const dmax=S.structure==="diamond"?.45:.72;
+    for(const [a,b] of bondList(atoms,dmax)) dLine(Txf(a),Txf(b),"rgba(180,198,220,.32)",2.4);
+  }
+  // 原子
+  if(S.showAtoms){
+    for(const at of atoms){
+      let c=COL[at.t];
+      if(S.showLayers&&at.t!=="basis") c=[COL.A,COL.B,COL.Cc,COL.A][at.layer];
+      const r=at.t==="basis"?R[2]:(at.t==="face"?R[1]:R[0]);
+      if(A.on) dGhost(at.p,r,c);
+      dBall(Txf(at.p),r,c);
+    }
+  }
+}
+
+function drawRecip(){
+  const k=mul(L_PT,S.kt*2);          // kt=0.5 で L 点
+  const sc=1;                          // BZ はそのまま (単位 2π/a)
+  const P=p=>Txf(mul(p,sc));
+  // 面
+  for(const f of BZF){
+    const isHex=f.hex, along111=isHex&&f.c[0]>0&&f.c[1]>0&&f.c[2]>0;
+    const fill=along111?"rgba(255,209,102,.16)":(isHex?"rgba(86,182,255,.07)":"rgba(120,200,140,.06)");
+    const st=along111?"rgba(255,209,102,.85)":"rgba(120,146,178,.45)";
+    dPoly(f.vs.map(P),fill,st,along111?1.9:1.1,-.0005);
+  }
+  for(const [a,b] of BZE) dLine(P(a),P(b),"rgba(140,165,195,.35)",1);
+  // 高対称点
+  dBall(P([0,0,0]),.035,[255,255,255]); dText(P([0,0,0]),"Γ","#fff",-14,-12,"700 15px 'Segoe UI'");
+  for(const v of starOf(L_PT)) dBall(P(v),.028,[255,107,107]);
+  dText(P(L_PT),"L","#ff6b6b",14,-10,"700 15px 'Segoe UI'");
+  for(const v of starOf(X_PT)) dBall(P(v),.026,[74,222,128]);
+  dText(P(X_PT),"X","#4ade80",14,-8,"700 14px 'Segoe UI'");
+  dText(P(W_PT),"W","#a78bfa",12,10,"600 12px 'Segoe UI'");
+  // Λ 線
+  dLine(P([0,0,0]),P(L_PT),"rgba(255,209,102,.55)",5);
+  dText(P(mul(L_PT,.62)),"Λ","#ffd166",-16,10,"700 16px 'Segoe UI'");
+  // k ベクトル
+  dArrow(P([0,0,0]),P(k),"#ffd166",3.2,12);
+  dText(P(mul(k,1.0)),"k","#ffd166",16,14,"700 15px 'Segoe UI'");
+  // 星
+  if(S.showKStar){
+    for(const v of starOf(k)){
+      const same=v.every((x,i)=>Math.abs(x-k[i])<1e-9);
+      if(same) continue;
+      dArrow(P([0,0,0]),P(v),"rgba(255,138,91,.75)",1.8,8);
+    }
+  }
+  // 試しの k（[100] 方向）
+  if(S.testK){
+    dArrow(P([0,0,0]),P(S.testK),"#4ade80",3,11);
+    dText(P(S.testK),"k′ ∥[100]","#4ade80",22,-12,"700 12px 'Segoe UI'");
+  }
+}
+
+// 画面の右方向に対応するワールドベクトル（viewRot は回転なので転置＝逆）
+const screenRight=()=>[Math.cos(cam.yaw),0,Math.sin(cam.yaw)];
+
+function drawWF(){
+  const e3=norm([1,1,1]), e1=norm([1,-1,0]), e2=cross(e3,e1);
+  const Rl=[[e1[0],e2[0],e3[0]],[e1[1],e2[1],e3[1]],[e1[2],e2[2],e3[2]]];
+  const defs=[
+    {name:"Λ₁  (A₁)", f:(t,p)=>Math.cos(t),                            sub:"全対称・1次元"},
+    {name:"Λ₂  (A₂)", f:(t,p)=>Math.pow(Math.sin(t),3)*Math.cos(3*p),  sub:"鏡で符号反転・1次元"},
+    {name:"Λ₃  (E)",  f:(t,p)=>Math.sin(t)*Math.cos(p),                sub:"2重縮退（相棒あり）"}
+  ];
+  const rt=screenRight(), off=[-2.05,0,2.05];
+  defs.forEach((D,idx)=>{
+    const cen=mul(rt,off[idx]);
+    // [111] 軸
+    dLine(add(cen,mul(e3,-1.0)),add(cen,mul(e3,1.0)),"rgba(255,209,102,.45)",2.2,[5,4]);
+    dText(add(cen,mul(e3,1.06)),"[111]","#ffd166",0,-10,"600 11px 'Segoe UI'");
+    dText(cen,D.name,"#e6edf3",0,118,"700 15px 'Segoe UI'");
+    dText(cen,D.sub,"#8b98a8",0,138,"500 11.5px 'Segoe UI'");
+    const NT=22,NP=44;
+    for(let i=0;i<NT;i++)for(let j=0;j<NP;j++){
+      const t0=i/NT*Math.PI,t1=(i+1)/NT*Math.PI,p0=j/NP*6.28319,p1=(j+1)/NP*6.28319;
+      const q=[[t0,p0],[t1,p0],[t1,p1],[t0,p1]].map(([t,p])=>{
+        const r=Math.abs(D.f(t,p))*.8+.03;
+        return add(cen,mv(Rl,[r*Math.sin(t)*Math.cos(p),r*Math.sin(t)*Math.sin(p),r*Math.cos(t)]));
+      });
+      const s=D.f((t0+t1)/2,(p0+p1)/2);
+      const lit=.75+.45*Math.abs(Math.cos((t0+t1)/2));
+      dPoly(q, s>=0?shade([90,150,255],lit):shade([255,110,110],lit),"rgba(0,0,0,.18)",.4);
+    }
+  });
+}
+
+function render(now){
+  tickAnim(now||0);
+  ctx.clearRect(0,0,W,H);
+  if(S.mode==="real") drawReal();
+  else if(S.mode==="recip") drawRecip();
+  else drawWF();
+  flush();
+  drawHud();
+  requestAnimationFrame(render);
+}
+
+/* ============================ HUD ============================ */
+function drawHud(){
+  const hud=document.getElementById("hud"), lg=document.getElementById("legend");
+  let h="";
+  if(A.on&&A.label) h+=`<div style="color:#ffd166;font-weight:700">操作中: ${A.label}</div>`;
+  if(S.mode==="recip"){
+    const k=mul(L_PT,S.kt*2), G=littleGroup(k), br=starCount(k);
+    const at = S.kt<1e-6?"Γ 点":(Math.abs(S.kt-.5)<1e-6?"L 点":"Λ 線上");
+    if(S.step===5){
+      h+=`<div class="big">Λ 線 = Γ → L　（k ∥ [111]）</div>`;
+      h+=`<div>[111] に垂直な面が<b>六角形</b>＝3回対称／[100] に垂直な面は<b>正方形</b>＝4回対称</div>`;
+    }else{
+      h+=`<div>k = (2π/a)(${(S.kt).toFixed(3)}, ${(S.kt).toFixed(3)}, ${(S.kt).toFixed(3)})　<b>${at}</b></div>`;
+      h+=`<div class="big">波数群 = ${groupName(G.length)}</div>`;
+      h+=`<div>位数 <b>${G.length}</b>　×　星の枝 <b>${br}</b>　=　${G.length*br}（＝O<sub>h</sub> の 48）</div>`;
+    }
+  }else if(S.mode==="real"){
+    h+=`<div>実空間　${S.structure==="diamond"?"ダイヤモンド構造 (Si, Ge)":"面心立方 FCC (Cu, Al, Ni)"}</div>`;
+    if(S.showStar) h+=`<div class="big">48 ÷ 8 = 6 → C₃ᵥ</div>`;
+  }else{
+    h+=`<div class="big">C₃ᵥ の既約表現で分類</div><div>青 = 正の位相 ／ 赤 = 負の位相</div>`;
+  }
+  hud.innerHTML=h;
+
+  let l="";
+  const chip=(c,t)=>`<span><i style="background:${c}"></i>${t}</span>`;
+  if(S.mode==="real"){
+    if(S.showLayers) l=chip("#ff8a5b","A層")+chip("#56b6ff","B層")+chip("#b7f36a","C層");
+    else{ l=chip("#ff8a5b","頂点原子")+chip("#56b6ff","面心原子");
+          if(S.structure==="diamond") l+=chip("#b7f36a","基底原子 (¼¼¼)"); }
+  }else if(S.mode==="recip"){
+    l=chip("#ffd166","[111] の六角形面 / Λ 線")+chip("#ff6b6b","L 点")+chip("#4ade80","X 点");
+  }
+  l+=`<span style="color:#5c6a7d">ドラッグ=回転　ホイール=拡大　←→=ステップ</span>`;
+  lg.innerHTML=l;
+}
+
+/* ============================ 操作（マウス） ============================ */
+let drag=false,lx=0,ly=0;
+cv.addEventListener("pointerdown",e=>{drag=true;lx=e.clientX;ly=e.clientY;cv.classList.add("drag");cv.setPointerCapture(e.pointerId);});
+cv.addEventListener("pointermove",e=>{
+  if(!drag)return;
+  cam.yaw+=(e.clientX-lx)*.008; cam.pitch+=(e.clientY-ly)*.008;
+  cam.pitch=Math.max(-1.52,Math.min(1.52,cam.pitch)); lx=e.clientX; ly=e.clientY;
+});
+addEventListener("pointerup",()=>{drag=false;cv.classList.remove("drag");});
+cv.addEventListener("wheel",e=>{e.preventDefault();cam.fov*=e.deltaY>0?.92:1.087;},{passive:false});
+addEventListener("keydown",e=>{
+  if(e.key==="ArrowRight") go(S.step+1);
+  if(e.key==="ArrowLeft") go(S.step-1);
+});
+function view111(){ cam.yaw=-Math.PI/4; cam.pitch=Math.atan(1/Math.SQRT2); }   // [111] を真上から（軸が点に潰れる）
+// 視線 ⊥ [111] かつ 画面右 ⊥ [111] → [111] が画面のちょうど真上を向き、長さも縮まない
+function view111up(){ cam.yaw=3*Math.PI/4; cam.pitch=Math.atan(Math.SQRT2); }
+function viewDefault(){ cam.yaw=-0.62; cam.pitch=0.42; }
+// BZ 用：[111] と視線の角度が約50°。六角形面も見えるし Λ 線も潰れない
+function viewBZ(){ cam.yaw=-1.74; cam.pitch=0.35; }
+
+/* ============================ ステップ定義 ============================ */
+const B={ // 描画状態のリセット
+  reset(){Object.assign(S,{showCube:true,showAtoms:true,showBonds:false,showAxis:false,
+    showLayers:false,showMirrors:false,showStar:false,mode:"real",showKStar:false,testK:null});
+    A.on=false;}
+};
+const C3P=()=>runOp("rot",[1,1,1],2*Math.PI/3,"C₃ : [111] まわり 120°");
+const C3M=()=>runOp("rot",[1,1,1],-2*Math.PI/3,"C₃⁻¹ : [111] まわり −120°");
+const MIR=(n,i)=>runOp("mir",n,0,"m"+i+" : "+millers(n,"p")+" 面での鏡映");
+
+const STEPS=[
+{
+ t:"① 立方晶",
+ title:"立方晶では x, y, z が完全に等価",
+ html:`
+ <p>面心立方 (FCC) の慣用単位胞。角に8個、各面の中心に6個の原子が座る。
+ 立方晶の本質は<span class="o">「3本の座標軸を入れ替えても、向きを反転しても、結晶が元と区別できない」</span>こと。</p>
+ <p>だから対称操作の数は<br>
+ <span class="mono g">　3! (軸の並べ替え) × 2³ (各軸の向き反転) = 6 × 8 = 48</span><br>
+ これが立方点群 <span class="k">O<sub>h</sub></span> の48個の正体。この48個を出発点にして、
+ 以下すべての話が「48個のうち何個が生き残るか」という引き算になる。</p>
+ <div class="note">ダイヤモンド構造 (Si, Ge) に切り替えると (¼,¼,¼) の基底原子が入る。
+ 結晶の点群 (結晶類) は同じ m3̄m = O<sub>h</sub> なので、以降の議論はそのまま通用する。</div>`,
+ setup(){B.reset();S.showAtoms=true;S.showBonds=S.structure==="diamond";cam.fov=1800;viewDefault();},
+ ctl:[
+  {k:"seg",label:"構造",opts:[["fcc","FCC (Cu)"],["diamond","ダイヤモンド (Si)"]],get:()=>S.structure,
+   set:v=>{S.structure=v;S.showBonds=v==="diamond";}},
+  {k:"tgl",label:"結合線",get:()=>S.showBonds,set:v=>S.showBonds=v},
+ ]
+},
+{
+ t:"② [111] は3回軸",
+ title:"体対角線 [111] のまわりで x→y→z→x",
+ html:`
+ <p>立方体の<span class="o">体対角線 [111]</span> のまわりに 120° 回してみると、
+ <span class="mono k">x軸 → y軸 → z軸 → x軸</span> と3本が巡回する。</p>
+ <p>3軸は等価なので、回した後の結晶は回す前と<b>まったく同じ</b>。
+ つまり [111] は <span class="k">3回回転軸 C₃</span>。ボタンで実際に回すと、
+ 破線の丸（元の原子位置）にぴったり原子が戻ることが見える。</p>
+ <p>体対角線は4本あるので3回軸も4本。この「4本の3回軸」こそが立方晶を立方晶たらしめている
+ （正方晶や六方晶にはない）。</p>
+ <div class="note">なぜ [100] ではなく [111] を選ぶのか？ — [100] は4回軸 (C₄) で、
+ そちらは Δ 線・波数群 C₄ᵥ の話になる。3回軸の方を追いかけると Λ 線・C₃ᵥ が出てくる。
+ どちらも「主軸を1本選んで、それを保つ操作だけ残す」という同じ操作。</div>`,
+ setup(){B.reset();S.showAxis=true;cam.fov=1750;view111up();},
+ ctl:[
+  {k:"btn",label:"C₃  (+120°)",fn:C3P},
+  {k:"btn",label:"C₃⁻¹ (−120°)",fn:C3M},
+  {k:"btn",label:"[111] を真上に立てる",fn:view111up},
+  {k:"btn",label:"[111] の真上から見る",fn:view111},
+  {k:"btn",label:"斜めに戻す",fn:viewDefault},
+ ]
+},
+{
+ t:"③ (111)面",
+ title:"[111] に垂直な面 = 最密六角形層 (ABC 積層)",
+ html:`
+ <p>[111] を法線にもつ面が <span class="o">(111) 面</span>。この面の上で原子は
+ <b>正三角格子</b>を組む（＝どの原子のまわりにも6個が正六角形に並ぶ最密充填層）。
+ 単位胞を切ると正三角形として現れ、<b>3回対称性がそのまま図形の対称性として見える</b>。</p>
+ <p>FCC はこの層を <span class="mono g">A → B → C → A → B → C …</span> と3種類ずらして積む構造。
+ 層間隔は <span class="mono">d₁₁₁ = a/√3</span>。</p>
+ <p>「[111] の真上から見る」を押すと、B層とC層の三角形が互いに60°ずれて重なる。
+ どちらの三角形も <b>120° 回すと自分に戻る</b>＝3回対称であることが一目でわかる
+ （A層は視線上の1点に潰れる）。</p>
+ <div class="note">重要：(111) 面そのものは<b>鏡面ではない</b>。ABC 積層は上下非対称だから、
+ [111] に垂直な鏡 σ<sub>h</sub> は存在しない。だから C₃<sub>h</sub> や D₃<sub>h</sub> ではなく、
+ 「主軸を含む縦の鏡」だけを持つ <span class="k">C₃ᵥ</span> (v = vertical) になる。</div>`,
+ setup(){B.reset();S.showAxis=true;S.showLayers=true;S.showCube=true;cam.fov=1750;view111();},
+ ctl:[
+  {k:"btn",label:"[111] の真上から見る",fn:view111},
+  {k:"btn",label:"斜めから見る",fn:viewDefault},
+  {k:"btn",label:"C₃ で回す",fn:C3P},
+  {k:"tgl",label:"立方体の枠",get:()=>S.showCube,set:v=>S.showCube=v},
+ ]
+},
+{
+ t:"④ 3枚の鏡面",
+ title:"[111] を含む鏡面は3枚 — これが v (vertical)",
+ html:`
+ <p>[111] 軸を<b>含む</b>鏡面は次の3枚（{110} 型）：</p>
+ <p class="mono" style="font-size:15px">
+ 　m₁ = (11̄0) ： x ↔ y の入れ替え<br>
+ 　m₂ = (011̄) ： y ↔ z の入れ替え<br>
+ 　m₃ = (1̄01) ： z ↔ x の入れ替え</p>
+ <p>2軸を入れ替える操作は行列式 −1、つまり<b>鏡映</b>。そして入れ替えても [111]=(1,1,1) は
+ 成分が全部同じなので<span class="o">動かない</span>。だからこの3枚は [111] を保つ。</p>
+ <p><b>v の意味</b>：主軸（ここでは [111]）を<b>含む</b>縦の鏡面を σ<sub>v</sub> と呼ぶ。
+ 主軸に<b>垂直</b>な水平鏡なら σ<sub>h</sub>。C₃ᵥ の「v」は
+ 「3回軸を含む鏡が3枚ある」ことを宣言している。</p>`,
+ setup(){B.reset();S.showAxis=true;S.showMirrors=true;cam.fov=1600;view111up();},
+ ctl:[
+  {k:"btn",label:"m₁ (11̄0)",fn:()=>MIR([1,-1,0],1)},
+  {k:"btn",label:"m₂ (011̄)",fn:()=>MIR([0,1,-1],2)},
+  {k:"btn",label:"m₃ (1̄01)",fn:()=>MIR([-1,0,1],3)},
+  {k:"btn",label:"C₃ で回す",fn:C3P},
+  {k:"tgl",label:"鏡面を表示",get:()=>S.showMirrors,set:v=>S.showMirrors=v},
+ ]
+},
+{
+ t:"⑤ 48 → 6",
+ title:"48個のうち [111] を動かさないのは 6個だけ",
+ html:`
+ <p>O<sub>h</sub> の48個を方向ベクトル (1,1,1) に作用させると、
+ 行き先は <span class="o">8本の &lt;111&gt; 方向</span>（体対角線4本 × 前後2向き）に散らばる。
+ これが <b>星 (star)</b>。</p>
+ <p>どの行き先も対等なので、1本あたりに集まる操作の数は</p>
+ <p class="mono" style="font-size:16px;text-align:center">48 ÷ 8 = <span class="k">6</span></p>
+ <p>この 6個 が「[111] を自分自身に戻す操作」＝ <b>[111] の小群 (little group)</b>。
+ 中身を数え上げると</p>
+ <p class="mono" style="font-size:15px;text-align:center">
+ { E } ∪ { C₃, C₃⁻¹ } ∪ { m₁, m₂, m₃ } = <span class="k">C₃ᵥ</span></p>
+ <p>3クラス・6元素。左パネルの数字はプログラムが48個を実際に総当たりして数えた結果で、
+ 手で仮定した値ではない。</p>`,
+ setup(){B.reset();S.showAxis=false;S.showStar=true;S.showAtoms=false;S.showCube=true;
+        cam.fov=1450;view111up();},
+ ctl:[
+  {k:"btn",label:"C₃ で回す（星は回るが [111] は不動）",fn:C3P},
+  {k:"btn",label:"m₁ で映す",fn:()=>MIR([1,-1,0],1)},
+  {k:"tgl",label:"原子を表示",get:()=>S.showAtoms,set:v=>S.showAtoms=v},
+ ],
+ extra(){ return groupTable(stabilizer([1,1,1])); }
+},
+{
+ t:"⑥ 逆空間 / BZ",
+ title:"逆空間へ：FCC → BCC 逆格子 → 切頂八面体 BZ",
+ html:`
+ <p>実空間 FCC の<span class="o">逆格子は BCC</span>。その Wigner–Seitz 胞＝
+ 第一ブリルアンゾーンが <b>切頂八面体</b>（正方形6面＋六角形8面）。</p>
+ <p class="mono" style="font-size:13px">
+ 　Γ = (0,0,0)　　　　　ゾーン中心<br>
+ 　L = (2π/a)(½,½,½)　六角形面の中心（[111] 方向）<br>
+ 　X = (2π/a)(1,0,0)　　正方形面の中心（[100] 方向）</p>
+ <p><span class="k">Λ 線</span>とは Γ から L へ向かう線分、つまり
+ <b>k ∥ [111] の直線</b>のこと。実空間で [111] を選んだのと同じ理由で、
+ 逆空間でも [111] 方向が特別扱いされる。</p>
+ <p>[111] に垂直な面が<b>六角形</b>になっているのは、その方向に3回対称があることの直接の現れ
+ （4回対称の [100] 方向は正方形）。ゾーンの形を見るだけで C₃ の存在がわかる。</p>`,
+ setup(){B.reset();S.mode="recip";S.kt=.5;cam.fov=1150;viewBZ();},
+ ctl:[
+  {k:"btn",label:"[111] の真上から見る（六角形を確認）",fn:view111},
+  {k:"btn",label:"[001] の真上から見る（正方形面＝4回対称）",fn:()=>{cam.yaw=0;cam.pitch=0;}},
+  {k:"btn",label:"斜めから見る",fn:viewBZ},
+ ]
+},
+{
+ t:"⑦ 波数群",
+ title:"波数群 G_k = { R ∈ O_h | R k = k + G }",
+ html:`
+ <p><b>波数群（小群）</b>の定義：点群の操作 R のうち、k を<b>そのまま</b>に保つもの。
+ ただし逆格子ベクトル G だけずれるのは同じ k と見なす（ゾーン境界で効いてくる）。</p>
+ <p>スライダーで k を Γ → L と動かすと、左上の位数がリアルタイムに変わる：</p>
+ <table class="ct">
+  <tr><th>k の位置</th><th>波数群</th><th>位数</th><th>星の枝</th></tr>
+  <tr><td>Γ (k=0)</td><td>O<sub>h</sub></td><td>48</td><td>1</td></tr>
+  <tr><td>Λ 線上 (0&lt;k&lt;L)</td><td>C<sub>3v</sub></td><td>6</td><td>8</td></tr>
+  <tr><td>L 点</td><td>D<sub>3d</sub></td><td>12</td><td>4</td></tr>
+ </table>
+ <p><b>なぜ Λ 線上で反転 i が落ちるのか</b>：結晶自体は [111] 軸まわりに
+ D<sub>3d</sub> = C₃ᵥ × {E, i} の対称性を持つ。しかし i は k → −k と符号を変えてしまうので、
+ <span class="o">k ≠ 0 では波数群から脱落する</span>。残るのがちょうど C₃ᵥ の6個。</p>
+ <p>一方 <b>L 点では −k と k が逆格子ベクトル (1,1,1)·(2π/a) で結ばれる</b>ため i が復活し、
+ 位数が 12 = D<sub>3d</sub> に跳ね上がる。スライダーを L ちょうどに合わせると数字が変わるのが見える。</p>
+ <div class="note">位数 × 星の枝 = 48 が常に成り立つ（軌道・安定化群定理）。左上の数字で確認できる。</div>`,
+ setup(){B.reset();S.mode="recip";S.kt=.28;S.showKStar=true;cam.fov=1150;viewBZ();},
+ ctl:[
+  {k:"rng",label:"k の位置 (Γ→L)",min:0,max:.5,step:.005,get:()=>S.kt,set:v=>S.kt=v,
+   fmt:v=>v<1e-6?"Γ":(Math.abs(v-.5)<1e-6?"L":"Λ 上 t="+(v*2).toFixed(2))},
+  {k:"btn",label:"Γ (0)",fn:()=>S.kt=0},
+  {k:"btn",label:"Λ 中点",fn:()=>S.kt=.25},
+  {k:"btn",label:"L (½½½)",fn:()=>S.kt=.5},
+  {k:"tgl",label:"星 (star) を表示",get:()=>S.showKStar,set:v=>S.showKStar=v},
+  {k:"btn",label:"C₃ を掛ける → k は不動",fn:C3P},
+  {k:"btn",label:"m₁ を掛ける → k は不動",fn:()=>MIR([1,-1,0],1)},
+  {k:"btn",label:"C₄ᶻ を掛ける → k が動く（群外）",cls:"warn",
+   fn:()=>{S.testK=[.55,0,0];runOp("rot",[0,0,1],Math.PI/2,"C₄ᶻ : k が別の枝へ飛ぶ（波数群に入らない）",1300);}},
+ ],
+ extra(){ return groupTable(littleGroup(mul(L_PT,S.kt*2))); },
+ live:true
+},
+{
+ t:"⑧ 波動関数",
+ title:"C₃ᵥ の既約表現でバンドを分類する — Λ₁, Λ₂, Λ₃",
+ html:`
+ <p>波数群が決まると、その k での固有関数は<b>波数群の既約表現</b>でラベルできる。
+ C₃ᵥ の指標表は3クラス → 既約表現も3個：</p>
+ <table class="ct">
+  <tr><th>C₃ᵥ</th><th>E</th><th>2C₃</th><th>3σ<sub>v</sub></th><th>次元</th><th class="b">基底の例（z ∥[111]）</th></tr>
+  <tr><td>Λ₁ = A₁</td><td>1</td><td>1</td><td>1</td><td>1</td><td class="b">1, z, x²+y²</td></tr>
+  <tr><td>Λ₂ = A₂</td><td>1</td><td>1</td><td>−1</td><td>1</td><td class="b">R<sub>z</sub>, x(x²−3y²)</td></tr>
+  <tr><td>Λ₃ = E</td><td>2</td><td>−1</td><td>0</td><td>2</td><td class="b">(x, y), (xz, yz)</td></tr>
+ </table>
+ <p>次元の2乗和 = 1+1+4 = 6 = 位数、というチェックが効く。</p>
+ <p><span class="k">Λ₁</span> は全対称（どの操作でも符号が変わらない）。s 的・縦波的な状態。<br>
+ <span class="k">Λ₂</span> は回転では不変だが鏡で符号が反転する。<br>
+ <span class="k">Λ₃</span> は<b>2重縮退</b>。C₃ᵥ が2次元既約表現を持つことが、
+ Λ 線上でバンドが2本くっついて走る理由。</p>
+ <p>右のグラフは局所座標（z 軸を [111] に取った）での角度依存性。
+ 青が正、赤が負の位相。[111] 軸まわりに 120° 回して重なるか、
+ 鏡で符号が変わるかを目で確かめられる。</p>
+ <div class="note">Si の伝導帯が Λ₁ で立ち上がり Γ から L へ向かうといった記述は、
+ まさにこの分類。Γ 点 (O<sub>h</sub>) の Γ₁, Γ₁₅ … が Λ 線に降りると
+ C₃ᵥ の Λ₁, Λ₃ … に分裂する（compatibility relation）。</div>`,
+ setup(){B.reset();S.mode="wf";cam.fov=800;cam.yaw=-0.35;cam.pitch=0.18;},
+ ctl:[
+  {k:"btn",label:"[111] の真上から見る（3回対称）",fn:()=>{view111();cam.fov=800;}},
+  {k:"btn",label:"横から見る",fn:()=>{cam.yaw=-0.35;cam.pitch=0.18;cam.fov=800;}},
+ ]
+}
+];
+
+function groupTable(G){
+  const byCls={};
+  for(const M of G){const o=describeOp(M);(byCls[o.cls]=byCls[o.cls]||[]).push(opLabel(M));}
+  const order=["E","C2","C3","C4","i","m","S4","S6"];
+  let h=`<div id="glist"><div style="color:#8b98a8;font-size:11.5px;margin-bottom:4px">
+    実際に48個を総当たりして残った操作（位数 ${G.length}）：</div>`;
+  for(const c of order){ if(!byCls[c])continue;
+    const cls=(c==="E"||c==="C2"||c==="C3"||c==="C4")?"p":"i";
+    h+=byCls[c].map(t=>`<span class="op ${cls}">${t}</span>`).join("");
+  }
+  return h+"</div>";
+}
+
+/* ============================ UI 構築 ============================ */
+const nav=document.getElementById("nav"), bodyEl=document.getElementById("body"), ctlEl=document.getElementById("ctl");
+STEPS.forEach((s,i)=>{
+  const b=document.createElement("button"); b.textContent=s.t; b.onclick=()=>go(i); nav.appendChild(b);
+});
+function go(i){
+  if(i<0||i>=STEPS.length) return;
+  S.step=i; const st=STEPS[i];
+  history.replaceState(null,"","#"+(i+1));
+  [...nav.children].forEach((b,j)=>b.classList.toggle("on",j===i));
+  st.setup();
+  bodyEl.innerHTML=`<h2>${st.title}</h2>`+st.html+(st.extra?`<div id="ex">${st.extra()}</div>`:"");
+  bodyEl.scrollTop=0;
+  buildCtl(st);
+}
+let curRng=null,curOut=null,curC=null;
+function syncRange(){
+  if(!curRng) return;
+  curRng.value=curC.get(); curOut.textContent=curC.fmt(curC.get());
+}
+function buildCtl(st){
+  ctlEl.innerHTML=""; curRng=curOut=curC=null;
+  const row=()=>{const d=document.createElement("div");d.className="row";ctlEl.appendChild(d);return d;};
+  let r=row(), n=0;
+  for(const c of st.ctl||[]){
+    if(n>=3){r=row();n=0;}
+    if(c.k==="btn"){
+      const b=document.createElement("button"); b.textContent=c.label; if(c.cls)b.className=c.cls;
+      b.onclick=()=>{c.fn();refreshExtra();syncRange();}; r.appendChild(b); n++;
+    }else if(c.k==="tgl"){
+      const l=document.createElement("label"); const cb=document.createElement("input");
+      cb.type="checkbox"; cb.checked=c.get(); cb.onchange=()=>c.set(cb.checked);
+      l.appendChild(cb); l.appendChild(document.createTextNode(c.label)); r.appendChild(l); n++;
+    }else if(c.k==="seg"){
+      const l=document.createElement("span"); l.className="tag"; l.textContent=c.label+"："; r.appendChild(l);
+      for(const [v,txt] of c.opts){
+        const b=document.createElement("button"); b.textContent=txt;
+        if(c.get()===v){b.style.background="#ffd166";b.style.color="#111";b.style.fontWeight="700";}
+        b.onclick=()=>{c.set(v);STEPS[S.step].setup();buildCtl(STEPS[S.step]);}; r.appendChild(b);
+      }
+      r=row(); n=0;
+    }else if(c.k==="rng"){
+      const rr=row();
+      const l=document.createElement("span"); l.className="tag"; l.style.minWidth="100px"; l.textContent=c.label;
+      const inp=document.createElement("input"); inp.type="range";
+      inp.min=c.min; inp.max=c.max; inp.step=c.step; inp.value=c.get();
+      const out=document.createElement("span"); out.className="tag"; out.style.minWidth="92px";
+      out.style.textAlign="right"; out.textContent=c.fmt(c.get());
+      inp.oninput=()=>{c.set(parseFloat(inp.value)); out.textContent=c.fmt(parseFloat(inp.value)); refreshExtra();};
+      rr.appendChild(l); rr.appendChild(inp); rr.appendChild(out);
+      r=row(); n=0;
+      curRng=inp; curOut=out; curC=c;
+    }
+  }
+}
+function refreshExtra(){
+  const st=STEPS[S.step]; if(!st.extra) return;
+  const ex=document.getElementById("ex"); if(ex) ex.innerHTML=st.extra();
+}
+
+addEventListener("resize",resize);
+resize();
+const h0=parseInt((location.hash.match(/\d+/)||[1])[0],10);
+go(Math.max(0,Math.min(STEPS.length-1,(isNaN(h0)?1:h0)-1)));
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
